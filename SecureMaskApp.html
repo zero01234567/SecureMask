@@ -4,7 +4,161 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecureMask Pro - ソースコード匿名化ツール</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        /* リセットCSSと基本設定 */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --primary: #2b8a3e;
+            --secondary: #495057;
+            --error: #c92a2a;
+            --background: #f8f9fa;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--background);
+            padding: 1rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center; /* 垂直方向中央寄せ */
+        }
+
+        .app-header {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .main-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            justify-content: space-around; /* 均等配置 */
+        }
+
+        .code-box {
+            width: 100%;
+            min-height: 150px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 15px;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 6px;
+            resize: vertical;
+            background-color: white;
+            line-height: 1.5;
+            flex: 1; /* 利用可能なスペースを全て使用 */
+        }
+
+        #outputResult {
+            background-color: #f8f9fa;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .mask-btn {
+            padding: 12px 24px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--primary);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            line-height: 1.5;
+        }
+
+        select.mask-btn {
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3e%3cpath d='M7 10l5 5 5-5z'/%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 16px;
+            padding-right: 40px;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        .mask-btn:hover {
+            background-color: #248232;
+            transform: translateY(-1px);
+        }
+
+        .error-alert {
+            color: var(--error);
+            padding: 1rem;
+            background: #fff5f5;
+            border: 2px solid #ffe3e3;
+            border-radius: 8px;
+            margin-top: 1rem;
+            display: none;
+        }
+
+        /* スクロールバースタイル */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary);
+            border-radius: 4px;
+        }
+
+        /* レスポンシブ対応 */
+        @media (max-width: 768px) {
+            body {
+                padding: 0.75rem;
+                justify-content: flex-start; /* モバイルでは上部寄せ */
+            }
+
+            .main-panel {
+                padding: 1rem;
+                gap: 1rem;
+            }
+
+            .control-group {
+                flex-direction: column;
+            }
+
+            .mask-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .code-box {
+                font-size: 14px;
+            }
+        }
+    </style>
 </head>
 <body>
     <header class="app-header">
@@ -15,14 +169,15 @@
     <main class="main-panel">
         <section>
             <h2>📥 入力コード</h2>
-            <textarea id="sourceInput" class="code-box"></textarea>
-            <br>
-            <select id="langSelect" class="mask-btn">
-                <option value="Java">Java</option>
-                <option value="Python">Python</option>
-                <option value="JavaScript">JavaScript</option>
-            </select>
-            <button id="executeBtn" class="mask-btn">🚀 匿名化実行</button>
+            <textarea id="sourceInput" class="code-box" placeholder="匿名化するコードを貼り付けてください..."></textarea>
+            <div class="control-group">
+                <select id="langSelect" class="mask-btn">
+                    <option value="Java">Java</option>
+                    <option value="Python">Python</option>
+                    <option value="JavaScript">JavaScript</option>
+                </select>
+                <button id="executeBtn" class="mask-btn">🚀 匿名化実行</button>
+            </div>
         </section>
 
         <section class="result-section">
@@ -53,41 +208,35 @@
             }
 
             mask(source, lang) {
-                if (!this.patterns[lang]) {
-                    throw new Error("未対応の言語です");
-                }
+                if (!this.patterns[lang]) throw new Error("未対応の言語です");
 
                 let counters = this.initCounters();
                 let masked = source;
 
-                // Javadoc マスキング
-                masked = masked.replace(this.patterns[lang].javadoc, (comment) => {
-                    return comment.replace(/@param\s+(\w+)/g, (_, p) => `@param param${counters.docParam++}`)
-                                  .replace(/@return\s+([^\s]+)/g, (_, r) => `@return result${counters.docReturn++}`);
-                });
+                masked = masked.replace(this.patterns[lang].javadoc, comment => 
+                    comment.replace(/@param\s+(\w+)/g, (_, p) => `@param param${counters.docParam++}`)
+                           .replace(/@return\s+([^\s]+)/g, (_, r) => `@return result${counters.docReturn++}`)
+                );
 
-                // アノテーションのマスキング
-                masked = masked.replace(this.patterns[lang].annotations, (match, annotationType, urlPath) => {
-                    return `@${annotationType}("/${annotationType.toLowerCase()}${counters.annotation++}")`;
-                });
+                masked = masked.replace(this.patterns[lang].annotations, (match, type) => 
+                    `@${type}("/${type.toLowerCase()}${counters.annotation++}")`
+                );
 
-                // クラス名のマスキング
-                masked = masked.replace(this.patterns[lang].class, (_, name) => `class Class${counters.class++}`);
+                masked = masked.replace(this.patterns[lang].class, () => 
+                    `class Class${counters.class++}`
+                );
 
-                // メソッド名のマスキング
-                masked = masked.replace(this.patterns[lang].method, (_, modifier, returnType, methodName, params) => {
-                    return `${modifier} ${returnType} method${counters.method++}(${params}) {`;
-                });
+                masked = masked.replace(this.patterns[lang].method, (_, mod, type) => 
+                    `${mod} ${type} method${counters.method++}`
+                );
 
-                // メソッド引数のマスキング
-                masked = masked.replace(this.patterns[lang].parameter, (_, type, paramName) => {
-                    return `@RequestParam ${type} param${counters.param++}`;
-                });
+                masked = masked.replace(this.patterns[lang].parameter, (_, type) => 
+                    `@RequestParam ${type} param${counters.param++}`
+                );
 
-                // 変数名のマスキング
-                masked = masked.replace(this.patterns[lang].variable, (_, type, varName) => {
-                    return `${type} var${counters.var++}`;
-                });
+                masked = masked.replace(this.patterns[lang].variable, (_, type) => 
+                    `${type} var${counters.var++}`
+                );
 
                 return masked;
             }
@@ -104,7 +253,7 @@
             }
 
             bindEvents() {
-                document.getElementById('executeBtn').addEventListener('click', (e) => {
+                document.getElementById('executeBtn').addEventListener('click', e => {
                     e.preventDefault();
                     this.process();
                 });
@@ -112,24 +261,28 @@
 
             process() {
                 try {
-                    const sourceCode = document.getElementById('sourceInput').value.trim();
-                    if (!sourceCode) throw new Error("入力コードが空です");
-
+                    const source = document.getElementById('sourceInput').value.trim();
+                    if (!source) throw new Error("入力コードが空です");
+                    
                     const lang = document.getElementById('langSelect').value;
-                    const result = this.engine.mask(sourceCode, lang);
-
+                    const result = this.engine.mask(source, lang);
+                    
                     document.getElementById('outputResult').value = result;
-                    document.getElementById('errorDisplay').style.display = "none";
-
+                    document.getElementById('errorDisplay').style.display = 'none';
                 } catch (error) {
-                    const errorBox = document.getElementById('errorDisplay');
-                    errorBox.textContent = `⚠️ エラー: ${error.message}`;
-                    errorBox.style.display = "block";
-                    console.error(`処理失敗: ${error.stack}`);
+                    this.showError(error);
                 }
+            }
+
+            showError(error) {
+                const errorBox = document.getElementById('errorDisplay');
+                errorBox.textContent = `⚠️ エラー: ${error.message}`;
+                errorBox.style.display = 'block';
+                console.error(`処理失敗: ${error.stack}`);
             }
         }
 
+        // アプリケーション初期化
         new SecureMaskApp();
     </script>
 </body>
