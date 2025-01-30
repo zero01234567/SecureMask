@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureMask Pro - ソースコード匿名化ツール</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="app-header">
+        <h1>🛡️ SecureMask Pro</h1>
+        <p>ソースコードの機密要素を完全匿名化</p>
+    </header>
+
+    <main class="main-panel">
+        <section>
+            <h2>📥 入力コード</h2>
+            <textarea id="sourceInput" class="code-box"></textarea>
+            <br>
+            <select id="langSelect" class="mask-btn">
+                <option value="Java">Java</option>
+                <option value="Python">Python</option>
+                <option value="JavaScript">JavaScript</option>
+            </select>
+            <button id="executeBtn" class="mask-btn">🚀 匿名化実行</button>
+        </section>
+
+        <section class="result-section">
+            <h2>📤 匿名化結果</h2>
+            <textarea id="outputResult" class="code-box" readonly></textarea>
+        </section>
+
+        <div id="errorDisplay" class="error-alert"></div>
+    </main>
+
+    <script>
+        class SecureMaskEngine {
+            constructor() {
+                this.patterns = {
+                    Java: this.createJavaPatterns()
+                };
+            }
+
+            createJavaPatterns() {
+                return {
+                    class: /\b(?:class|interface|enum)\s+([A-Z][A-Za-z0-9_]*)\b/g,
+                    method: /\b(public|private|protected|static|final|synchronized)\s+([A-Za-z0-9<>\[\],\s]+)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(([^)]*)\)\s*\{/g,
+                    variable: /\b([A-Za-z_$][\w$]*)\s+([A-Za-z_$][\w$]*)\s*(?:=|;)/g,
+                    parameter: /@RequestParam\s+([A-Za-z_$][A-Za-z0-9_$]*)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
+                    annotations: /@(GetMapping|PostMapping|RequestMapping|PutMapping|DeleteMapping|PatchMapping)\s*\(\s*"([^"]+)"\s*\)/g,
+                    javadoc: /\/\*\*[\s\S]*?\*\//g
+                };
+            }
+
+            mask(source, lang) {
+                if (!this.patterns[lang]) {
+                    throw new Error("未対応の言語です");
+                }
+
+                let counters = this.initCounters();
+                let masked = source;
+
+                // Javadoc マスキング
+                masked = masked.replace(this.patterns[lang].javadoc, (comment) => {
+                    return comment.replace(/@param\s+(\w+)/g, (_, p) => `@param param${counters.docParam++}`)
+                                  .replace(/@return\s+([^\s]+)/g, (_, r) => `@return result${counters.docReturn++}`);
+                });
+
+                // アノテーションのマスキング
+                masked = masked.replace(this.patterns[lang].annotations, (match, annotationType, urlPath) => {
+                    return `@${annotationType}("/${annotationType.toLowerCase()}${counters.annotation++}")`;
+                });
+
+                // クラス名のマスキング
+                masked = masked.replace(this.patterns[lang].class, (_, name) => `class Class${counters.class++}`);
+
+                // メソッド名のマスキング
+                masked = masked.replace(this.patterns[lang].method, (_, modifier, returnType, methodName, params) => {
+                    return `${modifier} ${returnType} method${counters.method++}(${params}) {`;
+                });
+
+                // メソッド引数のマスキング
+                masked = masked.replace(this.patterns[lang].parameter, (_, type, paramName) => {
+                    return `@RequestParam ${type} param${counters.param++}`;
+                });
+
+                // 変数名のマスキング
+                masked = masked.replace(this.patterns[lang].variable, (_, type, varName) => {
+                    return `${type} var${counters.var++}`;
+                });
+
+                return masked;
+            }
+
+            initCounters() {
+                return { class: 1, var: 1, method: 1, param: 1, docParam: 1, docReturn: 1, annotation: 1 };
+            }
+        }
+
+        class SecureMaskApp {
+            constructor() {
+                this.engine = new SecureMaskEngine();
+                this.bindEvents();
+            }
+
+            bindEvents() {
+                document.getElementById('executeBtn').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    this.process();
+                });
+            }
+
+            process() {
+                try {
+                    const sourceCode = document.getElementById('sourceInput').value.trim();
+                    if (!sourceCode) throw new Error("入力コードが空です");
+
+                    const lang = document.getElementById('langSelect').value;
+                    const result = this.engine.mask(sourceCode, lang);
+
+                    document.getElementById('outputResult').value = result;
+                    document.getElementById('errorDisplay').style.display = "none";
+
+                } catch (error) {
+                    const errorBox = document.getElementById('errorDisplay');
+                    errorBox.textContent = `⚠️ エラー: ${error.message}`;
+                    errorBox.style.display = "block";
+                    console.error(`処理失敗: ${error.stack}`);
+                }
+            }
+        }
+
+        new SecureMaskApp();
+    </script>
+</body>
+</html>
