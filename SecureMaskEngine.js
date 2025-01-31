@@ -9,6 +9,7 @@ class SecureMaskEngine {
         return {
             class: /\b(?:class|interface|enum)\s+([A-Z][A-Za-z0-9_]*)\s*(?:<[^>]+>)?\s*(?:implements\s+([A-Za-z0-9_$]+(\s*<[^>]+>)?)\s*(?:,\s*[A-Za-z0-9_$]+(\s*<[^>]+>)?)*)?\s*\{/g,
             method: /\b(public|private|protected|static|final|synchronized)?\s*([A-Za-z0-9<>\[\],\s]+)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*\(([^)]*)\)\s*\{/g,
+            constructor: /\b(public|private|protected)?\s+([A-Za-z0-9_$]+)\s*\(([\s\S]*?)\)\s*\{/g,
             variable: /\b([A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*)\s+([A-Za-z_$][\w$]*)\s*(?:=|;)/g,
             parameter: /@RequestParam\s+([A-Za-z_$][A-Za-z0-9_$]*)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
             annotations: /@(GetMapping|PostMapping|RequestMapping|PutMapping|DeleteMapping|PatchMapping)\s*\(\s*"([^"]+)"\s*\)/g,
@@ -48,6 +49,16 @@ class SecureMaskEngine {
             return maskedClass + ' {';
         });
 
+        // コンストラクタのマスキング
+        masked = masked.replace(this.patterns[lang].constructor, (_, modifier, constructorName, params) => {
+            // パラメータの匿名化
+            let maskedParams = params.split(',').map(param => {
+                let [type, name] = param.trim().split(/\s+/);
+                return `Type${counters.type++} var${counters.var++}`;
+            }).join(', ');
+            return `${modifier || ''} Constructor${counters.constructor++}(${maskedParams}) {`;
+        });
+
         // メソッド名のマスキング
         masked = masked.replace(this.patterns[lang].method, (_, modifier, returnType, methodName, params) => {
             return `${modifier || ''} ${returnType} method${counters.method++}(${params}) {`;
@@ -67,6 +78,6 @@ class SecureMaskEngine {
     }
 
     initCounters() {
-        return { class: 1, var: 1, method: 1, param: 1, docParam: 1, docReturn: 1, annotation: 1, type: 1, interface: 1 };
+        return { class: 1, var: 1, method: 1, param: 1, docParam: 1, docReturn: 1, annotation: 1, type: 1, interface: 1, constructor: 1 };
     }
 }
