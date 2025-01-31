@@ -13,7 +13,8 @@ class SecureMaskEngine {
             variable: /\b([A-Za-z_$][\w$]*(\.[A-Za-z_$][\w$]*)*)\s+([A-Za-z_$][\w$]*)\s*(?:=|;)/g,
             parameter: /@RequestParam\s+([A-Za-z_$][A-Za-z0-9_$]*)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
             annotations: /@(GetMapping|PostMapping|RequestMapping|PutMapping|DeleteMapping|PatchMapping)\s*\(\s*"([^"]+)"\s*\)/g,
-            javadoc: /\/\*\*[\s\S]*?\*\//g
+            javadoc: /\/\*\*[\s\S]*?\*\//g,
+            fieldAssignment: /this\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*;/g // フィールド代入部分を検出する正規表現
         };
     }
 
@@ -74,10 +75,18 @@ class SecureMaskEngine {
             return `Type${counters.type++} var${counters.var++}`;
         });
 
+        // フィールド代入部分のマスキング
+        masked = masked.replace(this.patterns[lang].fieldAssignment, (_, fieldName, value) => {
+            return `this.field${counters.field++} = var${counters.var++};`;
+        });
+
         return masked;
     }
 
     initCounters() {
-        return { class: 1, var: 1, method: 1, param: 1, docParam: 1, docReturn: 1, annotation: 1, type: 1, interface: 1, constructor: 1 };
+        return { 
+            class: 1, var: 1, method: 1, param: 1, docParam: 1, docReturn: 1, 
+            annotation: 1, type: 1, interface: 1, constructor: 1, field: 1 
+        };
     }
 }
