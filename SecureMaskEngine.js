@@ -14,7 +14,7 @@ class SecureMaskEngine {
             parameter: /@RequestParam\s+([A-Za-z_$][A-Za-z0-9_$]*)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g,
             annotations: /@(GetMapping|PostMapping|RequestMapping|PutMapping|DeleteMapping|PatchMapping)\s*\(\s*"([^"]+)"\s*\)/g,
             javadoc: /\/\*\*[\s\S]*?\*\//g,
-            fieldAssignment: /this\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*;/g // フィールド代入部分を検出する正規表現
+            fieldAssignment: /this\.([A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*;/g
         };
     }
 
@@ -26,11 +26,39 @@ class SecureMaskEngine {
         let counters = this.initCounters();
         let masked = source;
 
-        // Javadoc マスキング
-        masked = masked.replace(this.patterns[lang].javadoc, (comment) => {
-            return comment.replace(/@param\s+(\w+)/g, (_, p) => `@param param${counters.docParam++}`)
-                          .replace(/@return\s+([^\s]+)/g, (_, r) => `@return result${counters.docReturn++}`);
+        // 型名の匿名化
+        masked = masked.replace(/(\W)([A-Z][A-Za-z0-9_$<>]+)(\s+)/g, (_, prefix, type, suffix) => {
+            return `${prefix}Type${counters.type++}${suffix}`;
         });
+
+        // Javadocマスキング
+        masked = masked.replace(this.patterns[lang].javadoc, (comment) => {
+            return comment
+                .replace(/@param\s+(\w+)/g, (_, p) => `@param param${counters.docParam++}`)
+                .replace(/(説明|パラメータ|parameter)[:：]\s*(\w+)/g, (_, desc, param) => `${desc}: param${counters.docParam++}`)
+                .replace(/@return\s+([^\s]+)/g, (_, r) => `@return result${counters.docReturn++}`);
+        });
+
+        // フィールド宣言匿名化
+        masked = masked.replace(/(private|protected|public)\s+(final\s+)?([A-Za-z0-9_$<>]+)\s+([A-Za-z_$][\w$]*)\s*;/g, 
+            (_, modifier, finalKeyword, type, varName) => {
+                return `${modifier} ${finalKeyword || ''}Type${counters.type++} var${counters.var++};`;
+            }
+        );
+
+        // フィールドアクセス部分のマスキング（修正）
+        masked = masked.replace(/this\.([A-Za-z_$][A-Za-z0-9_$]*)(\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*)*\s*\(/g, 
+            (_, fieldName) => {
+                return `this.var${counters.var++}(`;
+            }
+        );
+
+        // フィールド代入部分のマスキング（修正）
+        masked = masked.replace(/this\.([A-Za-z_$][A-Za-z0-9_$]*)(\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*)*;/g, 
+            (_, fieldName) => {
+                return `this.var${counters.var++};`;
+            }
+        );
 
         // アノテーションのマスキング
         masked = masked.replace(this.patterns[lang].annotations, (match, annotationType, urlPath) => {
@@ -41,7 +69,6 @@ class SecureMaskEngine {
         masked = masked.replace(this.patterns[lang].class, (_, className, implementsPart) => {
             let maskedClass = `class Class${counters.class++}`;
             if (implementsPart) {
-                // インタフェース部分を匿名化
                 let maskedInterfaces = implementsPart.split(',').map(iface => {
                     return `Interface${counters.interface++}`;
                 }).join(', ');
@@ -52,8 +79,7 @@ class SecureMaskEngine {
 
         // コンストラクタのマスキング
         masked = masked.replace(this.patterns[lang].constructor, (_, modifier, constructorName, params) => {
-            // パラメータの匿名化
-            let maskedParams = params.split(',').map(param => {
+            let maskedParams = params.split(/\s*,\s*/).map(param => {
                 let [type, name] = param.trim().split(/\s+/);
                 return `Type${counters.type++} var${counters.var++}`;
             }).join(', ');
@@ -73,11 +99,6 @@ class SecureMaskEngine {
         // 変数名と型名のマスキング
         masked = masked.replace(this.patterns[lang].variable, (_, type, varName) => {
             return `Type${counters.type++} var${counters.var++}`;
-        });
-
-        // フィールド代入部分のマスキング
-        masked = masked.replace(this.patterns[lang].fieldAssignment, (_, fieldName, value) => {
-            return `this.field${counters.field++} = var${counters.var++};`;
         });
 
         return masked;
